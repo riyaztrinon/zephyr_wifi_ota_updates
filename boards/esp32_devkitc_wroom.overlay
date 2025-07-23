@@ -1,0 +1,54 @@
+/ {
+    chosen {
+        zephyr,flash = &flash0;
+        zephyr,code-partition = &slot0_partition;
+    };
+
+    aliases {
+        led0 = &led0;
+    };
+
+    leds {
+        compatible = "gpio-leds";
+        led0: led_0 {
+            gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+            label = "LED 0";
+        };
+    };
+};
+
+&flash0 {
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        boot_partition: partition@0 {
+            label = "mcuboot";
+            reg = <0x00000000 0x10000>;
+            read-only;
+        };
+
+        slot0_partition: partition@10000 {
+            label = "image-0";
+            reg = <0x00010000 0x180000>;
+        };
+
+        slot1_partition: partition@190000 {
+            label = "image-1";
+            reg = <0x00190000 0x180000>;
+        };
+
+        storage_partition: partition@310000 {
+            label = "storage";
+            reg = <0x00310000 0x10000>;
+        };
+    };
+};
+
+&nvs0 {
+    compatible = "zephyr,nvs";
+    partition = <&storage_partition>;
+    sector-size = <4096>;
+    sector-count = <4>;
+};
