@@ -11,23 +11,36 @@
 
 LOG_MODULE_REGISTER(main);
 
-#define LED0_NODE DT_ALIAS(led0)
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
+// Check if LED is defined in devicetree, if not define a dummy
+#if DT_NODE_EXISTS(DT_ALIAS(led0))
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+#define LED_AVAILABLE 1
+#else
+#define LED_AVAILABLE 0
+#endif
 
 static struct net_mgmt_event_callback wifi_cb;
 static struct net_mgmt_event_callback ipv4_cb;
 
 static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-                                   uint32_t mgmt_event, struct net_if *iface)
+                                   uint64_t mgmt_event, struct net_if *iface)
 {
     switch (mgmt_event) {
     case NET_EVENT_WIFI_CONNECT_RESULT:
         LOG_INF("WiFi connected");
-        gpio_pin_set_dt(&led, 1);
+#if LED_AVAILABLE
+        if (device_is_ready(led.port)) {
+            gpio_pin_set_dt(&led, 1);
+        }
+#endif
         break;
     case NET_EVENT_WIFI_DISCONNECT_RESULT:
         LOG_INF("WiFi disconnected");
-        gpio_pin_set_dt(&led, 0);
+#if LED_AVAILABLE
+        if (device_is_ready(led.port)) {
+            gpio_pin_set_dt(&led, 0);
+        }
+#endif
         break;
     default:
         break;
@@ -35,19 +48,23 @@ static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
 }
 
 static void ipv4_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-                                   uint32_t mgmt_event, struct net_if *iface)
+                                   uint64_t mgmt_event, struct net_if *iface)
 {
     if (mgmt_event == NET_EVENT_IPV4_ADDR_ADD) {
         char buf[NET_IPV4_ADDR_LEN];
         
         LOG_INF("IPv4 address added");
         
-        if (net_addr_ntop(AF_INET, &iface->config.ip.ipv4->unicast[0].address.in_addr,
-                         buf, sizeof(buf))) {
-            LOG_INF("Address: %s", buf);
-            
-            // Start web server once we have IP
-            web_server_start();
+        // Get the first IPv4 address from the interface
+        struct net_if_ipv4 *ipv4 = iface->config.ip.ipv4;
+        if (ipv4 && ipv4->unicast) {
+            struct in_addr *addr = &ipv4->unicast[0].address.in_addr;
+            if (net_addr_ntop(AF_INET, addr, buf, sizeof(buf))) {
+                LOG_INF("Address: %s", buf);
+                
+                // Start web server once we have IP
+                web_server_start();
+            }
         }
     }
 }
@@ -57,19 +74,21 @@ int main(void)
     int ret;
     
     LOG_INF("ESP32 WiFi Provisioning & OTA Update Demo");
-    LOG_INF("Zephyr version: %s", KERNEL_VERSION_STRING);
+    LOG_INF("Zephyr-based WiFi OTA system initialized");
     
-    // Initialize LED
-    if (!gpio_is_ready_dt(&led)) {
-        LOG_ERR("LED device not ready");
-        return -1;
+    // Initialize LED if available
+#if LED_AVAILABLE
+    if (device_is_ready(led.port)) {
+        ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
+        if (ret < 0) {
+            LOG_WRN("Failed to configure LED pin");
+        }
+    } else {
+        LOG_WRN("LED device not ready");
     }
-    
-    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure LED pin");
-        return ret;
-    }
+#else
+    LOG_INF("No LED configured");
+#endif
     
     // Initialize storage
     ret = storage_init();
