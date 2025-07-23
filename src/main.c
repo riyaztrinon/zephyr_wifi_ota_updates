@@ -100,5 +100,5 @@ int main(void)
     
     LOG_INF("System initialized. Connect to AP mode or configure WiFi.");
     
-    return 1;
+    return 0;
 }
