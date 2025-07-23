@@ -10,7 +10,7 @@
 
 LOG_MODULE_REGISTER(ota_manager);
 
-#define FLASH_AREA_IMAGE_SECONDARY FLASH_AREA_ID(image_1)
+#define FLASH_AREA_IMAGE_SECONDARY FIXED_PARTITION_ID(slot1_partition)
 
 static const struct flash_area *flash_area;
 static size_t bytes_written = 0;
